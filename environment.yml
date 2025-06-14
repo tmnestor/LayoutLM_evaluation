@@ -1,0 +1,32 @@
+name: layoutlm_eval
+channels:
+  - pytorch
+  - conda-forge
+  - huggingface
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - transformers
+  - datasets
+  - tokenizers
+  - pillow
+  - numpy<2.0
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - tqdm
+  - pytest
+  - pytest-cov
+  - mypy
+  - ruff
+  - typer
+  - rich
+  - jupyter
+  - ipykernel
+  - pip
+  - pip:
+    - layoutlm
+    # - layoutlmv2
+    - detectron2
