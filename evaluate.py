@@ -27,6 +27,10 @@ class RichConfig:
     """Configuration for rich console output."""
 
     console: Console = Console()
+    success_style: str = "[bold green]\u2705[/bold green]"
+    fail_style: str = "[bold red]\u274C[/bold red]"
+    warning_style: str = "[bold yellow]\u26A0[/bold yellow]"
+    info_style: str = "[bold blue]ℹ[/bold blue]"
 
 
 rich_config = RichConfig()
@@ -398,12 +402,12 @@ def main(
 
     # Load prediction files
     console.print(
-        Panel(f"Loading prediction files from {predictions_dir}", style="blue")
+        Panel(f"{rich_config.info_style} Loading prediction files from {predictions_dir}")
     )
     predictions_dir_path = Path(predictions_dir)
     page_dataframes = load_prediction_files(predictions_dir_path, gold_standard_col, prediction_col)
     console.print(
-        f"✓ Loaded [bold green]{len(page_dataframes)}[/bold green] prediction files"
+        f"{rich_config.success_style} Loaded [bold green]{len(page_dataframes)}[/bold green] prediction files"
     )
 
     # Combine all predictions and labels for token-level metrics
@@ -426,12 +430,12 @@ def main(
         token_metrics = compute_token_metrics(
             np.array(all_predictions), np.array(all_labels)
         )
-    console.print("✓ Token-level metrics computed")
+    console.print(f"{rich_config.success_style} Token-level metrics computed")
 
     # Compute page-level metrics
     with console.status("[bold yellow]Computing page-level metrics...[/bold yellow]"):
         page_metrics = compute_page_metrics(page_dataframes)
-    console.print("✓ Page-level metrics computed")
+    console.print(f"{rich_config.success_style} Page-level metrics computed")
 
     # Combine all metrics
     final_metrics = {
@@ -445,7 +449,7 @@ def main(
 
     # Save detailed results if requested
     if save_detailed_results:
-        console.print("[bold yellow]Saving detailed results...[/bold yellow]")
+        console.print(f"{rich_config.info_style} Saving detailed results...")
 
         # Save classification report
         class_report_df = pd.DataFrame(
@@ -477,11 +481,11 @@ def main(
         page_results_df = pd.DataFrame(page_results)
         page_results_df.to_csv(output_dir_path / "per_page_results.csv", index=False)
 
-        console.print("✓ Detailed results saved")
+        console.print(f"{rich_config.success_style} Detailed results saved")
 
     # Generate visualizations if detailed results are requested
     if save_detailed_results:
-        console.print("[bold yellow]Generating visualizations...[/bold yellow]")
+        console.print(f"{rich_config.info_style} Generating visualizations...")
         
         # Get unique class labels for confusion matrix
         all_unique_labels = list(set(all_labels + all_predictions))
@@ -501,7 +505,7 @@ def main(
             performance_chart_path
         )
         
-        console.print("✓ Visualizations generated")
+        console.print(f"{rich_config.success_style} Visualizations generated")
 
     # Save summary metrics
     # Remove non-serializable items for JSON
@@ -565,7 +569,7 @@ def main(
 
     console.print(
         Panel(
-            f"✓ Evaluation completed successfully!\n"
+            f"{rich_config.success_style} Evaluation completed successfully!\n"
             f"Results saved to: [bold blue]{output_dir_path}[/bold blue]",
             style="green",
         )
