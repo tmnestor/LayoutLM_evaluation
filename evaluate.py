@@ -74,13 +74,20 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
             page_df = pd.read_csv(file_path)
         else:  # Excel file
             try:
-                page_df = pd.read_excel(file_path)
-            except ValueError as e:
-                if "Value must be either numerical or a string containing a wildcard" in str(e):
-                    # Try reading without filters
+                # First try with xlrd engine to avoid openpyxl filter issues
+                page_df = pd.read_excel(file_path, engine='xlrd')
+            except Exception:
+                try:
+                    # Fallback: use openpyxl but ignore data validation
+                    import openpyxl
+                    wb = openpyxl.load_workbook(file_path, data_only=True)  # noqa: F841
                     page_df = pd.read_excel(file_path, engine='openpyxl')
-                else:
-                    raise
+                except ValueError as e:
+                    if "Value must be either numerical or a string containing a wildcard" in str(e):
+                        # Last resort: read as binary and convert
+                        page_df = pd.read_excel(file_path, engine='openpyxl', ignore_index=True)
+                    else:
+                        raise
             
         # Validate required columns
         required_cols = ["bboxes", prediction_col, "prob", gold_standard_col]
