@@ -14,8 +14,6 @@ ws = wb.active
 headers = []
 pred_col = None
 annotator1_col = None
-annotator2_col = None
-prob_col = None
 
 for row in ws.iter_rows(max_row=1, values_only=True):
     headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
@@ -26,10 +24,6 @@ for i, header in enumerate(headers):
         pred_col = i
     elif header == 'annotator1_label':
         annotator1_col = i
-    elif header == 'annotator2_label':
-        annotator2_col = i
-    elif header == 'prob':
-        prob_col = i
 
 # Extract only the required columns
 data = []
@@ -39,10 +33,6 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         row_data['pred'] = row[pred_col] if pred_col < len(row) else None
     if annotator1_col is not None:
         row_data['annotator1_label'] = row[annotator1_col] if annotator1_col < len(row) else None
-    if annotator2_col is not None:
-        row_data['annotator2_label'] = row[annotator2_col] if annotator2_col < len(row) else None
-    if prob_col is not None:
-        row_data['prob'] = row[prob_col] if prob_col < len(row) else None
     data.append(row_data)
 
 wb.close()
