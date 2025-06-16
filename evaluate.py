@@ -90,8 +90,9 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
                 # Fallback: try to read directly, ignoring filter errors
                 try:
                     page_df = pd.read_excel(file_path, engine='openpyxl')
-                except Exception as fallback_e:
-                    raise Exception(f"Could not read Excel file {file_path}: {str(e)}") from fallback_e
+                except Exception:
+                    rich_config.console.print(f"{rich_config.warning_style} Skipping corrupted file {file_path}: {str(e)}")
+                    continue
             
         # Validate required columns
         required_cols = ["bboxes", prediction_col, "prob", gold_standard_col]
