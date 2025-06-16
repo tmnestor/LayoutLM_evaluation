@@ -77,29 +77,45 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
             page_df = pd.read_csv(file_path)
             processed_files.append(file_path)
         else:  # Excel file
-            try:
+            file_loaded = False
+            
+            # Try multiple approaches to read the Excel file
+            def try_direct_openpyxl(filepath):
                 import openpyxl
-                # Load workbook and remove any filters that might cause issues
-                wb = openpyxl.load_workbook(file_path, data_only=True)
-                for sheet in wb.worksheets:
-                    if hasattr(sheet, 'auto_filter') and sheet.auto_filter:
-                        sheet.auto_filter = None
-                # Save temporary file without filters
-                temp_path = file_path.with_name(file_path.stem + '_temp.xlsx')
-                wb.save(temp_path)
-                page_df = pd.read_excel(temp_path, engine='openpyxl')
-                # Clean up temp file
-                temp_path.unlink()
-                processed_files.append(file_path)
-            except Exception as e:
-                # Fallback: try to read directly, ignoring filter errors
+                wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
+                ws = wb.active
+                data = []
+                headers = []
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if i == 0:
+                        headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
+                    else:
+                        data.append(row)
+                wb.close()
+                return pd.DataFrame(data, columns=headers)
+            
+            approaches = [
+                ("pandas default", lambda filepath=file_path: pd.read_excel(filepath)),
+                ("openpyxl engine", lambda filepath=file_path: pd.read_excel(filepath, engine='openpyxl')),
+                ("direct openpyxl load", lambda filepath=file_path: try_direct_openpyxl(filepath))
+            ]
+            
+            for approach_name, read_func in approaches:
                 try:
-                    page_df = pd.read_excel(file_path, engine='openpyxl')
-                    processed_files.append(file_path)
-                except Exception:
-                    rich_config.console.print(f"{rich_config.warning_style} Skipping corrupted file {file_path}: {str(e)}")
-                    skipped_files.append(file_path)
+                    page_df = read_func()
+                    if page_df is not None and not page_df.empty:
+                        processed_files.append(file_path)
+                        file_loaded = True
+                        rich_config.console.print(f"{rich_config.success_style} Loaded {file_path.name} using {approach_name}")
+                        break
+                except Exception as e:
+                    rich_config.console.print(f"{rich_config.info_style} {approach_name} failed for {file_path.name}: {str(e)[:100]}")
                     continue
+            
+            if not file_loaded:
+                rich_config.console.print(f"{rich_config.fail_style} All approaches failed for {file_path.name}")
+                skipped_files.append(file_path)
+                continue
             
         # Validate required columns
         required_cols = ["bboxes", prediction_col, "prob", gold_standard_col]
