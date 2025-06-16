@@ -68,10 +68,14 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
         raise ValueError(f"No CSV or Excel files found in {predictions_dir}")
 
     dataframes = []
+    processed_files = []
+    skipped_files = []
+    
     for file_path in sorted(all_files):
         # Load based on file extension
         if file_path.suffix.lower() == '.csv':
             page_df = pd.read_csv(file_path)
+            processed_files.append(file_path)
         else:  # Excel file
             try:
                 import openpyxl
@@ -86,12 +90,15 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
                 page_df = pd.read_excel(temp_path, engine='openpyxl')
                 # Clean up temp file
                 temp_path.unlink()
+                processed_files.append(file_path)
             except Exception as e:
                 # Fallback: try to read directly, ignoring filter errors
                 try:
                     page_df = pd.read_excel(file_path, engine='openpyxl')
+                    processed_files.append(file_path)
                 except Exception:
                     rich_config.console.print(f"{rich_config.warning_style} Skipping corrupted file {file_path}: {str(e)}")
+                    skipped_files.append(file_path)
                     continue
             
         # Validate required columns
@@ -104,6 +111,15 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
         page_df["labels"] = page_df[gold_standard_col]  # Gold standard
         page_df["pred"] = page_df[prediction_col]       # Predictions
         dataframes.append(page_df)
+
+    # Display processing summary
+    rich_config.console.print(f"{rich_config.success_style} Processed {len(processed_files)} files successfully")
+    rich_config.console.print(f"{rich_config.info_style} Skipped {len(skipped_files)} corrupted files")
+    
+    if skipped_files:
+        rich_config.console.print("\n[bold]Skipped files:[/bold]")
+        for file_path in skipped_files:
+            rich_config.console.print(f"  - {file_path.name}")
 
     return dataframes
 
