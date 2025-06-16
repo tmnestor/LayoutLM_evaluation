@@ -87,13 +87,39 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
                 data = []
                 headers = []
                 row_num = 0
+                pred_col_idx = None
+                label_col_idx = None
                 
                 try:
                     for row in ws.iter_rows(values_only=True):
                         if row_num == 0:
                             headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
+                            # Find prediction and label column indices
+                            for i, header in enumerate(headers):
+                                if header == prediction_col:
+                                    pred_col_idx = i
+                                elif header == gold_standard_col:
+                                    label_col_idx = i
                         else:
-                            data.append(row)
+                            # Clean up None values
+                            cleaned_row = []
+                            for cell in row:
+                                if cell is None:
+                                    cleaned_row.append('unknown')
+                                else:
+                                    cleaned_row.append(str(cell))
+                            
+                            # Filter out rows where both pred and label are "other"
+                            if pred_col_idx is not None and label_col_idx is not None:
+                                pred_val = cleaned_row[pred_col_idx] if pred_col_idx < len(cleaned_row) else 'unknown'
+                                label_val = cleaned_row[label_col_idx] if label_col_idx < len(cleaned_row) else 'unknown'
+                                
+                                # Skip rows where both pred and label are "other"
+                                if not (pred_val == 'other' and label_val == 'other'):
+                                    data.append(cleaned_row)
+                            else:
+                                data.append(cleaned_row)
+                        
                         row_num += 1
                         
                         # Safety limit to prevent infinite loops
@@ -154,7 +180,7 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
 
 
 def compute_token_metrics(all_predictions: np.ndarray, all_labels: np.ndarray) -> Dict:
-    """Compute token-level evaluation metrics.
+    """Compute token-level evaluation metrics with class imbalance handling.
 
     Args:
         all_predictions: Array of predicted class labels
@@ -174,9 +200,14 @@ def compute_token_metrics(all_predictions: np.ndarray, all_labels: np.ndarray) -
         all_labels_str, all_predictions_str, average="weighted", zero_division=0
     )
 
-    # Classification report for per-class metrics
+    # Classification report for per-class metrics (exclude 'other' from detailed reporting)
+    labels_to_use = [label for label in set(all_labels_str + all_predictions_str) if label != 'other']
+    
     class_report = classification_report(
-        all_labels_str, all_predictions_str, output_dict=True, zero_division=0
+        all_labels_str, all_predictions_str, 
+        labels=labels_to_use,
+        output_dict=True, 
+        zero_division=0
     )
 
     return {
@@ -465,14 +496,15 @@ def main(
         class_names_path.read_text().strip().split("\n")
 
     # Load prediction files
-    console.print(
-        Panel(f"{rich_config.info_style} Loading prediction files from {predictions_dir}")
-    )
+    rich_config.console.print(f"{rich_config.info_style} Loading prediction files from {predictions_dir}")
     predictions_dir_path = Path(predictions_dir)
     page_dataframes = load_prediction_files(predictions_dir_path, gold_standard_col, prediction_col)
-    console.print(
-        f"{rich_config.success_style} Loaded [bold green]{len(page_dataframes)}[/bold green] prediction files"
-    )
+    
+    # Count total tokens and filter summary
+    total_tokens = sum(len(df) for df in page_dataframes)
+    meaningful_tokens = sum(len(df[(df['pred'] != 'other') | (df['labels'] != 'other')]) for df in page_dataframes)
+    
+    rich_config.console.print(f"{rich_config.success_style} Loaded {len(page_dataframes)} files, {total_tokens} total tokens, {meaningful_tokens} meaningful tokens")
 
     # Combine all predictions and labels for token-level metrics
     all_predictions = []
@@ -489,17 +521,17 @@ def main(
         f"Total tokens across all pages: [bold cyan]{total_tokens}[/bold cyan]"
     )
 
-    # Compute token-level metrics
-    with console.status("[bold yellow]Computing token-level metrics...[/bold yellow]"):
-        token_metrics = compute_token_metrics(
-            np.array(all_predictions), np.array(all_labels)
-        )
-    console.print(f"{rich_config.success_style} Token-level metrics computed")
-
-    # Compute page-level metrics
-    with console.status("[bold yellow]Computing page-level metrics...[/bold yellow]"):
+    # Compute metrics
+    rich_config.console.print(f"{rich_config.info_style} Computing evaluation metrics...")
+    
+    try:
+        token_metrics = compute_token_metrics(np.array(all_predictions), np.array(all_labels))
         page_metrics = compute_page_metrics(page_dataframes)
-    console.print(f"{rich_config.success_style} Page-level metrics computed")
+        
+        rich_config.console.print(f"{rich_config.success_style} Metrics computed successfully")
+    except Exception as e:
+        rich_config.console.print(f"{rich_config.fail_style} Error computing metrics: {str(e)}")
+        return
 
     # Combine all metrics
     final_metrics = {
