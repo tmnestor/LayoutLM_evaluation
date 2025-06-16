@@ -73,7 +73,14 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
         if file_path.suffix.lower() == '.csv':
             page_df = pd.read_csv(file_path)
         else:  # Excel file
-            page_df = pd.read_excel(file_path)
+            try:
+                page_df = pd.read_excel(file_path)
+            except ValueError as e:
+                if "Value must be either numerical or a string containing a wildcard" in str(e):
+                    # Try reading without filters
+                    page_df = pd.read_excel(file_path, engine='openpyxl')
+                else:
+                    raise
             
         # Validate required columns
         required_cols = ["bboxes", prediction_col, "prob", gold_standard_col]
