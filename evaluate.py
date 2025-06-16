@@ -74,20 +74,24 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
             page_df = pd.read_csv(file_path)
         else:  # Excel file
             try:
-                # First try with xlrd engine to avoid openpyxl filter issues
-                page_df = pd.read_excel(file_path, engine='xlrd')
-            except Exception:
+                import openpyxl
+                # Load workbook and remove any filters that might cause issues
+                wb = openpyxl.load_workbook(file_path, data_only=True)
+                for sheet in wb.worksheets:
+                    if hasattr(sheet, 'auto_filter') and sheet.auto_filter:
+                        sheet.auto_filter = None
+                # Save temporary file without filters
+                temp_path = file_path.with_name(file_path.stem + '_temp.xlsx')
+                wb.save(temp_path)
+                page_df = pd.read_excel(temp_path, engine='openpyxl')
+                # Clean up temp file
+                temp_path.unlink()
+            except Exception as e:
+                # Fallback: try to read directly, ignoring filter errors
                 try:
-                    # Fallback: use openpyxl but ignore data validation
-                    import openpyxl
-                    wb = openpyxl.load_workbook(file_path, data_only=True)  # noqa: F841
                     page_df = pd.read_excel(file_path, engine='openpyxl')
-                except ValueError as e:
-                    if "Value must be either numerical or a string containing a wildcard" in str(e):
-                        # Last resort: read as binary and convert
-                        page_df = pd.read_excel(file_path, engine='openpyxl', ignore_index=True)
-                    else:
-                        raise
+                except Exception as fallback_e:
+                    raise Exception(f"Could not read Excel file {file_path}: {str(e)}") from fallback_e
             
         # Validate required columns
         required_cols = ["bboxes", prediction_col, "prob", gold_standard_col]
