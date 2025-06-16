@@ -79,49 +79,25 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
         else:  # Excel file
             file_loaded = False
             
-            # Try minimal column extraction
+            # Try working openpyxl approach with row limit
             def try_minimal_columns(filepath):
                 import openpyxl
                 wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
                 ws = wb.active
-                
-                # Find header row and required column indices
-                headers = []
-                pred_col = None
-                annotator1_col = None
-                annotator2_col = None
-                prob_col = None
-                
-                for row in ws.iter_rows(max_row=1, values_only=True):
-                    headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
-                    break
-                
-                for i, header in enumerate(headers):
-                    if header == 'pred':
-                        pred_col = i
-                    elif header == 'annotator1_label':
-                        annotator1_col = i
-                    elif header == 'annotator2_label':
-                        annotator2_col = i
-                    elif header == 'prob':
-                        prob_col = i
-                
-                # Extract only the required columns
                 data = []
-                for row in ws.iter_rows(min_row=2, values_only=True):
-                    row_data = {}
-                    if pred_col is not None:
-                        row_data['pred'] = row[pred_col] if pred_col < len(row) else None
-                    if annotator1_col is not None:
-                        row_data['annotator1_label'] = row[annotator1_col] if annotator1_col < len(row) else None
-                    if annotator2_col is not None:
-                        row_data['annotator2_label'] = row[annotator2_col] if annotator2_col < len(row) else None
-                    if prob_col is not None:
-                        row_data['prob'] = row[prob_col] if prob_col < len(row) else None
-                    data.append(row_data)
+                headers = []
+                
+                # Read all rows but stop at reasonable limit to avoid corruption
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if i == 0:
+                        headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
+                    else:
+                        data.append(row)
+                    if i > 500:  # Safety limit to prevent reading corrupted data
+                        break
                 
                 wb.close()
-                return pd.DataFrame(data)
+                return pd.DataFrame(data, columns=headers)
             
             approaches = [
                 ("minimal column extraction", lambda filepath=file_path: try_minimal_columns(filepath)),

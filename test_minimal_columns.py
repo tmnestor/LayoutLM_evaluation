@@ -4,38 +4,39 @@ import openpyxl
 import pandas as pd
 
 # Test file path
-file_path = Path('my_file.xlsx')
+file_path = Path("test.xlsx")
 
-# Minimal column extraction approach
+# Direct openpyxl approach with dynamic row detection
 wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
 ws = wb.active
 
-# Find header row and required column indices
-headers = []
-pred_col = None
-annotator1_col = None
-
-for row in ws.iter_rows(max_row=1, values_only=True):
-    headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
-    break
-
-for i, header in enumerate(headers):
-    if header == 'pred':
-        pred_col = i
-    elif header == 'annotator1_label':
-        annotator1_col = i
-
-# Extract only the required columns
-data = []
-for row in ws.iter_rows(min_row=2, values_only=True):
-    row_data = {}
-    if pred_col is not None:
-        row_data['pred'] = row[pred_col] if pred_col < len(row) else None
-    if annotator1_col is not None:
-        row_data['annotator1_label'] = row[annotator1_col] if annotator1_col < len(row) else None
-    data.append(row_data)
+# First pass: count actual data rows
+actual_rows = 0
+for row in ws.iter_rows(values_only=True):
+    if any(cell is not None for cell in row):  # Check if row has any data
+        actual_rows += 1
+    else:
+        break  # Stop at first empty row
 
 wb.close()
-test_df = pd.DataFrame(data)
+
+# Second pass: read data with correct row count
+wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+ws = wb.active
+data = []
+headers = []
+for i, row in enumerate(ws.iter_rows(values_only=True)):
+    if i == 0:
+        headers = [
+            str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)
+        ]
+    else:
+        data.append(row)
+    if i >= actual_rows - 1:  # Stop at actual data end
+        break
+
+wb.close()
+test_df = pd.DataFrame(data, columns=headers)
+print(f"Detected {actual_rows} rows")
 print(f"Shape: {test_df.shape}")
-print(test_df.head())
+print(test_df.tail(1))
