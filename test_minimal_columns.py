@@ -7,7 +7,7 @@ import pandas as pd
 file_path = Path("test1.xlsx")
 
 # Direct openpyxl approach - use worksheet dimensions
-wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True, keep_vba=False, keep_links=False)
 ws = wb.active
 
 # Get the actual data range (avoids reading corrupted metadata)
