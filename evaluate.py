@@ -79,22 +79,30 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
         else:  # Excel file
             file_loaded = False
             
-            # Try working openpyxl approach with row limit
+            # Try exception handling approach to read all data before corruption
             def try_minimal_columns(filepath):
                 import openpyxl
                 wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
                 ws = wb.active
                 data = []
                 headers = []
+                row_num = 0
                 
-                # Read all rows but stop at reasonable limit to avoid corruption
-                for i, row in enumerate(ws.iter_rows(values_only=True)):
-                    if i == 0:
-                        headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
-                    else:
-                        data.append(row)
-                    if i > 500:  # Safety limit to prevent reading corrupted data
-                        break
+                try:
+                    for row in ws.iter_rows(values_only=True):
+                        if row_num == 0:
+                            headers = [str(cell) if cell is not None else f"col_{j}" for j, cell in enumerate(row)]
+                        else:
+                            data.append(row)
+                        row_num += 1
+                        
+                        # Safety limit to prevent infinite loops
+                        if row_num > 1000:
+                            break
+                            
+                except Exception:
+                    # Stop gracefully when corruption is detected
+                    pass
                 
                 wb.close()
                 return pd.DataFrame(data, columns=headers)
