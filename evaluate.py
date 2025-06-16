@@ -95,9 +95,9 @@ def load_prediction_files(predictions_dir: Path, gold_standard_col: str, predict
                 return pd.DataFrame(data, columns=headers)
             
             approaches = [
+                ("direct openpyxl read-only", lambda filepath=file_path: try_direct_openpyxl(filepath)),
                 ("pandas default read-only", lambda filepath=file_path: pd.read_excel(filepath)),
-                ("openpyxl read-only", lambda filepath=file_path: pd.read_excel(filepath, engine='openpyxl')),
-                ("direct openpyxl read-only", lambda filepath=file_path: try_direct_openpyxl(filepath))
+                ("openpyxl read-only", lambda filepath=file_path: pd.read_excel(filepath, engine='openpyxl'))
             ]
             
             for approach_name, read_func in approaches:
